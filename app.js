@@ -60,12 +60,12 @@ function enlarge(O,s){var c=document.createElement("canvas");c.width=O.w*s;c.hei
  x.putImageData(id,0,0);return c}
 // ---- 表示 ----
 var raf=0;function draw(){if(raf)return;raf=requestAnimationFrame(function(){raf=0;drawNow()})}
-function drawNow(){if(!out)return;var beads=$("beads").checked;$("preview").hidden=beads;$("chart").hidden=!beads;$("dropText").hidden=true;
+function drawNow(){if(!out)return;var beads=$("beads").checked;$("preview").hidden=beads;$("chart").hidden=!beads;$("dropText").hidden=true;$("zoomWrap").hidden=false;
  if(beads){drawChart($("chart"));beadPanel()}else{var cv=$("preview"),L=Math.max(out.w,out.h),s=Math.max(1,Math.floor(1024/L));
   var big=enlarge(out,s);if(cv.width!==big.width||cv.height!==big.height){cv.width=big.width;cv.height=big.height}var x=cv.getContext("2d");x.clearRect(0,0,cv.width,cv.height);x.drawImage(big,0,0);
   if($("lines").checked&&s>=3){x.fillStyle="rgba(18,12,26,.45)";for(var i=0;i<=out.w;i++)x.fillRect(Math.min(i*s,cv.width-1),0,1,cv.height);for(var j=0;j<=out.h;j++)x.fillRect(0,Math.min(j*s,cv.height-1),cv.width,1);
    if(out.w>16||out.h>16){x.fillStyle="rgba(236,232,240,.5)";for(i=0;i<=out.w;i+=8)x.fillRect(Math.min(i*s,cv.width-1),0,1,cv.height);for(j=0;j<=out.h;j+=8)x.fillRect(0,Math.min(j*s,cv.height-1),cv.width,1)}}}
- info();ui()}
+ info();ui();applyZoom()}
 function info(){if(!out){$("sizeInfo").textContent="";return}var S=scaleOf();
  $("sizeInfo").textContent="ドット "+out.w+"×"+out.h+" → 保存 "+out.w*S.s+"×"+out.h*S.s+" px"+(S.cl?"（最大 "+MAXPX+"px に合わせて "+S.s+" 倍）":"");
  [].forEach.call(document.querySelectorAll(".seg label"),function(l){l.classList.toggle("on",l.querySelector("input").checked)})}
@@ -108,8 +108,33 @@ function load(file){$("toast").textContent="";if(!file||!/^image\//.test(file.ty
  TsukiLoader.show({caption:"読み込み中…",size:3});var url=URL.createObjectURL(file),img=new Image();
  img.onload=function(){if(src&&src.__url)URL.revokeObjectURL(src.__url);img.__url=url;src=img;cells=null;TsukiLoader.hide();run(true)};
  img.onerror=function(){TsukiLoader.hide();URL.revokeObjectURL(url);toast("この画像は開けなかった…（HEIC などはブラウザによって読めないことがあるよ。PNG か JPEG に変換してみてね）",5000)};img.src=url}
+var stroke=null,cv=$("preview"),wrap=$("zoomWrap"),stg=$("stage"),ptrs=new Map(),pan=null,pinch=null,pend=null,multi=false,locked=false,zoom=1,ZL=[1,1.5,2,3,4,6,8];
+// ---- 表示の拡大・縮小（CSS の表示サイズだけを変える。out や保存サイズには触らない）----
+function vis(){return $("beads").checked?$("chart"):cv}
+function fitBase(c){var cs=getComputedStyle(stg),W=stg.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight),H=Math.max(120,innerHeight*.7);
+ if(!(W>0))W=c.width;return Math.min(1,W/c.width,H/c.height)}
+function clamp01(v){return Math.max(0,Math.min(1,v))}
+function applyZoom(cx,cy,fx,fy){var c=vis();
+ if(out&&!c.hidden&&c.width){var r=c.getBoundingClientRect();
+  if(cx!==undefined&&fx===undefined){fx=r.width?clamp01((cx-r.left)/r.width):.5;fy=r.height?clamp01((cy-r.top)/r.height):.5}
+  var b=fitBase(c);c.style.width=Math.max(1,Math.floor(c.width*b*zoom))+"px";c.style.height=Math.max(1,Math.floor(c.height*b*zoom))+"px";
+  if(cx!==undefined){var r2=c.getBoundingClientRect();wrap.scrollLeft+=r2.left+fx*r2.width-cx;wrap.scrollTop+=r2.top+fy*r2.height-cy}}
+ var zr=Math.round(zoom);$("zoomVal").textContent=(Math.abs(zoom-zr)<.05?zr:zoom.toFixed(1))+"倍";
+ $("zoomOut").disabled=!out||zoom<=1.001;$("zoomIn").disabled=!out||zoom>=7.999;$("zoom1").disabled=!out||zoom===1}
+function setZoom(z,cx,cy,fx,fy){zoom=Math.max(1,Math.min(8,z));if(Math.abs(zoom-Math.round(zoom))<.02)zoom=Math.round(zoom);applyZoom(cx,cy,fx,fy)}
+function wcenter(){var r=wrap.getBoundingClientRect();return[r.left+r.width/2,r.top+r.height/2]}
+function zstep(d){var z=d>0?(ZL.filter(function(v){return v>zoom+.01})[0]||8):(ZL.filter(function(v){return v<zoom-.01}).pop()||1);var m=wcenter();setZoom(z,m[0],m[1])}
+$("zoomIn").onclick=function(){zstep(1)};$("zoomOut").onclick=function(){zstep(-1)};$("zoom1").onclick=function(){setZoom(1);wrap.scrollLeft=wrap.scrollTop=0};
+wrap.addEventListener("wheel",function(e){if(!out||!(e.ctrlKey||e.metaKey))return;e.preventDefault();
+ var dy=e.deltaMode===1?e.deltaY*33:e.deltaMode===2?e.deltaY*400:e.deltaY;setZoom(zoom*Math.exp(-dy*.0025),e.clientX,e.clientY)},{passive:false});
+window.addEventListener("resize",function(){applyZoom()});
+// ---- ロック ----
+function setLock(v){locked=!!v;var b=$("lock");b.setAttribute("aria-pressed",locked);$("lockTxt").textContent=locked?"ロック中":"ロック";
+ $("lockArc").setAttribute("d",locked?"M5 7V4.5a3 3 0 0 1 6 0V7":"M5 7V4.5a3 3 0 0 1 6 0V5");wrap.classList.toggle("locked",locked);
+ if(locked&&stroke)rollback()}
+$("lock").onclick=function(){setLock(!locked);toast(locked?"ロック中：描かずに、ドラッグで移動・2本指で拡大縮小だけできるよ":"ロックを外したよ。また描けるよ")};
 // ---- お絵かき ----
-function cellAt(e){var r=$("preview").getBoundingClientRect();var x=Math.floor((e.clientX-r.left)/r.width*out.w),y=Math.floor((e.clientY-r.top)/r.height*out.h);
+function cellAt(e){var r=cv.getBoundingClientRect();var x=Math.floor((e.clientX-r.left)/r.width*out.w),y=Math.floor((e.clientY-r.top)/r.height*out.h);
  return x<0||y<0||x>=out.w||y>=out.h?null:[x,y]}
 function setCell(x,y,c){var p=(y*out.w+x)*4,d=out.d;if(c){if(d[p+3]===255&&d[p]===c[0]&&d[p+1]===c[1]&&d[p+2]===c[2])return false;d[p]=c[0];d[p+1]=c[1];d[p+2]=c[2];d[p+3]=255}
  else{if(!d[p+3])return false;d[p]=d[p+1]=d[p+2]=d[p+3]=0}return true}
@@ -120,21 +145,39 @@ function flood(x,y,c){var d=out.d,w=out.w,h=out.h,p0=(y*w+x)*4,t=[d[p0],d[p0+1],
  function same(p){return t[3]?d[p+3]===255&&d[p]===t[0]&&d[p+1]===t[1]&&d[p+2]===t[2]:!d[p+3]}
  var st=[x,y],seen=new Uint8Array(w*h);while(st.length){var yy=st.pop(),xx=st.pop(),i=yy*w+xx;if(seen[i])continue;seen[i]=1;if(!same(i*4))continue;setCell(xx,yy,c);
   if(xx>0)st.push(xx-1,yy);if(xx<w-1)st.push(xx+1,yy);if(yy>0)st.push(xx,yy-1);if(yy<h-1)st.push(xx,yy+1)}return true}
-var stroke=null,cv=$("preview");
-cv.addEventListener("pointerdown",function(e){if(!out||$("beads").checked||(e.pointerType==="mouse"&&e.button!==0))return;var c=cellAt(e);if(!c)return;e.preventDefault();
- try{cv.setPointerCapture(e.pointerId)}catch(_){}
- var col=tool==="eraser"?null:rgb(cur);
- if(tool==="pick"){var p=(c[1]*out.w+c[0])*4;if(!out.d[p+3]){setTool("eraser");toast("透明なマスだったので消しゴムにしたよ")}else{var h=hex([out.d[p],out.d[p+1],out.d[p+2]]);if(pal.indexOf(h)<0&&custom.indexOf(h)<0)custom.push(h);setCur(h);toast(h+" を拾ったよ")}return}
- var before=snap();
- if(tool==="fill"){if(flood(c[0],c[1],col)){undoS.push(before);if(undoS.length>HMAX)undoS.shift();redoS=[];edited=true;draw()}return}
+function doPick(c){var p=(c[1]*out.w+c[0])*4;if(!out.d[p+3]){setTool("eraser");toast("透明なマスだったので消しゴムにしたよ")}else{var h=hex([out.d[p],out.d[p+1],out.d[p+2]]);if(pal.indexOf(h)<0&&custom.indexOf(h)<0)custom.push(h);setCur(h);toast(h+" を拾ったよ")}}
+function doFill(c){var before=snap();if(flood(c[0],c[1],tool==="eraser"?null:rgb(cur))){undoS.push(before);if(undoS.length>HMAX)undoS.shift();redoS=[];edited=true;draw();ui()}}
+// 2 本目の指が来たら、描きかけの線は取り消す（履歴にも残さない）
+function rollback(){if(stroke){out.d.set(stroke.before.d);stroke=null;draw();ui()}pend=null}
+function two(){var a=[];ptrs.forEach(function(p){if(a.length<2)a.push(p)});return a}
+function startPinch(){var a=two(),c=vis(),r=c.getBoundingClientRect(),mx=(a[0].x+a[1].x)/2,my=(a[0].y+a[1].y)/2;
+ pinch={d0:Math.max(1,Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y)),z0:zoom,fx:r.width?(mx-r.left)/r.width:.5,fy:r.height?(my-r.top)/r.height:.5}}
+wrap.addEventListener("pointerdown",function(e){if(!out||(e.pointerType==="mouse"&&e.button!==0))return;e.preventDefault();
+ try{wrap.setPointerCapture(e.pointerId)}catch(_){}
+ ptrs.set(e.pointerId,{x:e.clientX,y:e.clientY});
+ if(ptrs.size>=2){if(!multi){rollback();pan=null;multi=true;wrap.classList.remove("panning")}startPinch();return}
+ multi=false;var c=(!locked&&!$("beads").checked&&e.target===cv)?cellAt(e):null;
+ if(!c){pan={id:e.pointerId,x:e.clientX,y:e.clientY,l:wrap.scrollLeft,t:wrap.scrollTop};wrap.classList.add("panning");return}
+ if(tool==="pick"||tool==="fill"){pend={id:e.pointerId,c:c};return}
+ var col=tool==="eraser"?null:rgb(cur),before=snap();
  stroke={id:e.pointerId,last:c,col:col,before:before,ch:setCell(c[0],c[1],col)};draw()});
-cv.addEventListener("pointermove",function(e){if(!stroke||e.pointerId!==stroke.id)return;e.preventDefault();var evs=e.getCoalescedEvents?e.getCoalescedEvents():[e];if(!evs.length)evs=[e];
+wrap.addEventListener("pointermove",function(e){var p=ptrs.get(e.pointerId);if(!p)return;p.x=e.clientX;p.y=e.clientY;
+ if(pinch){e.preventDefault();var a=two(),d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y);setZoom(pinch.z0*d/pinch.d0,(a[0].x+a[1].x)/2,(a[0].y+a[1].y)/2,pinch.fx,pinch.fy);return}
+ if(pan&&e.pointerId===pan.id){e.preventDefault();wrap.scrollLeft=pan.l-(e.clientX-pan.x);wrap.scrollTop=pan.t-(e.clientY-pan.y);return}
+ if(!stroke||e.pointerId!==stroke.id)return;e.preventDefault();var evs=e.getCoalescedEvents?e.getCoalescedEvents():[e];if(!evs.length)evs=[e];
  evs.forEach(function(ev){var c=cellAt(ev);if(!c)return;if(line(stroke.last,c,stroke.col))stroke.ch=true;stroke.last=c});draw()});
-function endStroke(e){if(!stroke||(e&&e.pointerId!==stroke.id))return;if(stroke.ch){undoS.push(stroke.before);if(undoS.length>HMAX)undoS.shift();redoS=[];edited=true}stroke=null;ui()}
-cv.addEventListener("pointerup",endStroke);cv.addEventListener("pointercancel",endStroke);cv.addEventListener("lostpointercapture",endStroke);
-cv.addEventListener("touchstart",function(e){if(out&&!$("beads").checked)e.preventDefault()},{passive:false});
-cv.addEventListener("touchmove",function(e){if(out&&!$("beads").checked)e.preventDefault()},{passive:false});
-cv.addEventListener("contextmenu",function(e){e.preventDefault()});
+function endStroke(){if(stroke.ch){undoS.push(stroke.before);if(undoS.length>HMAX)undoS.shift();redoS=[];edited=true}stroke=null;ui()}
+function ptrEnd(e){if(!ptrs.has(e.pointerId))return;ptrs.delete(e.pointerId);
+ if(pend&&pend.id===e.pointerId){var q=pend;pend=null;if(e.type==="pointerup"&&!multi&&!locked&&out&&!$("beads").checked){if(tool==="pick")doPick(q.c);else if(tool==="fill")doFill(q.c)}}
+ if(stroke&&stroke.id===e.pointerId)endStroke();
+ if(pan&&pan.id===e.pointerId){pan=null;wrap.classList.remove("panning")}
+ if(pinch&&ptrs.size<2)pinch=null;
+ if(!ptrs.size)multi=false}
+wrap.addEventListener("pointerup",ptrEnd);wrap.addEventListener("pointercancel",ptrEnd);wrap.addEventListener("lostpointercapture",ptrEnd);
+wrap.addEventListener("touchstart",function(e){if(out)e.preventDefault()},{passive:false});
+wrap.addEventListener("touchmove",function(e){if(out)e.preventDefault()},{passive:false});
+["gesturestart","gesturechange"].forEach(function(t){wrap.addEventListener(t,function(e){e.preventDefault()})});
+wrap.addEventListener("contextmenu",function(e){e.preventDefault()});
 // ---- アイロンビーズ図面 ----
 function counts(){var m={},d=out.d;for(var i=0;i<d.length;i+=4){if(d[i+3]!==255)continue;var h=hex([d[i],d[i+1],d[i+2]]);m[h]=(m[h]||0)+1}
  return Object.keys(m).map(function(h){return{hex:h,n:m[h]}}).sort(function(a,b){return b.n-a.n||(a.hex<b.hex?-1:1)})}
@@ -195,5 +238,6 @@ window.__dot={size:function(){return out?[out.w,out.h]:null},palette:function(){
  cell:function(x,y){var p=(y*out.w+x)*4;return out.d[p+3]?hex([out.d[p],out.d[p+1],out.d[p+2]]):null},
  state:function(){return out?out.w+"x"+out.h+":"+Array.prototype.join.call(out.d,","):""},counts:function(){return out?counts():[]},
  chartGeom:function(){return chartGeom},sizeSel:function(){var o=$("photoOpt");return[$("blankSize").value,o.hidden,o.textContent]},hist:function(){return[undoS.length,redoS.length]},cur:function(){return cur},
+ zoom:function(){return zoom},locked:function(){return locked},
  hash:function(){if(!out)return 0;var h=0;for(var i=0;i<out.d.length;i++)h=(h*31+out.d[i])|0;return h},presets:PRESETS};
 })();

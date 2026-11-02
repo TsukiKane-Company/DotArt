@@ -4,11 +4,12 @@
 <main>
 <section id="left">
 <div id="toolbar" role="toolbar" aria-label="お絵かき道具">
-<button class="tool on" data-tool="pen" aria-pressed="true" title="ペン">✎ ペン</button><button class="tool" data-tool="eraser" aria-pressed="false" title="消しゴム">⌫ 消しゴム</button><button class="tool" data-tool="fill" aria-pressed="false" title="塗りつぶし">▧ 塗りつぶし</button><button class="tool" data-tool="pick" aria-pressed="false" title="スポイト">◉ スポイト</button>
+<button id="lock" aria-pressed="false" title="ロック中は描かない。ドラッグで移動、2本指で拡大・縮小だけできる"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="2.5" y="7" width="11" height="8" rx="1.5" fill="currentColor"/><path id="lockArc" d="M5 7V4.5a3 3 0 0 1 6 0V7" fill="none" stroke="currentColor" stroke-width="1.8"/></svg> <span id="lockTxt">ロック</span></button><span class="sep"></span><button class="tool on" data-tool="pen" aria-pressed="true" title="ペン">✎ ペン</button><button class="tool" data-tool="eraser" aria-pressed="false" title="消しゴム">⌫ 消しゴム</button><button class="tool" data-tool="fill" aria-pressed="false" title="塗りつぶし">▧ 塗りつぶし</button><button class="tool" data-tool="pick" aria-pressed="false" title="スポイト">◉ スポイト</button>
 <span class="sep"></span><button id="undo" disabled title="元に戻す（Ctrl+Z）">↶ 元に戻す</button><button id="redo" disabled title="やり直す（Ctrl+Shift+Z）">↷ やり直す</button><button id="clear" disabled title="全部消す">全消し</button></div>
+<div id="zoomBar" role="group" aria-label="表示の拡大・縮小"><button id="zoomOut" disabled title="縮小" aria-label="縮小">－</button><output id="zoomVal" aria-live="polite">1倍</output><button id="zoomIn" disabled title="拡大" aria-label="拡大">＋</button><button id="zoom1" disabled title="等倍に戻す">等倍</button><span class="zhint">2本指でつまんで拡大・2本指で移動／PC は Ctrl+ホイール。表示だけで、保存サイズは変わらない</span></div>
 <div id="stage" tabindex="0"><input type="file" id="file" accept="image/*" hidden>
 <label id="dropText" for="file">ここに画像をドロップ／クリックして選択／Ctrl+V で貼り付け<br><small>白紙から描くときは「白紙から描く」を押してね</small></label>
-<canvas id="preview" hidden aria-label="ドット絵（描けるよ）"></canvas><canvas id="chart" hidden aria-label="アイロンビーズ図面"></canvas></div>
+<div id="zoomWrap" hidden><canvas id="preview" hidden aria-label="ドット絵（描けるよ）"></canvas><canvas id="chart" hidden aria-label="アイロンビーズ図面"></canvas></div></div>
 <div id="colorRow"><span>いまの色：</span><span id="cur" class="chip big" title="いまの色"></span><ul id="chips" aria-label="パレットの色（押して選ぶ）"></ul><label class="custom" title="好きな色を追加">＋<input type="color" id="custom" value="#BBF701" aria-label="好きな色"></label></div>
 </section>
 <section id="panel">
