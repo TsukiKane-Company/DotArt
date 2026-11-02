@@ -60,11 +60,15 @@ function enlarge(O,s){var c=document.createElement("canvas");c.width=O.w*s;c.hei
  x.putImageData(id,0,0);return c}
 // ---- 表示 ----
 var raf=0;function draw(){if(raf)return;raf=requestAnimationFrame(function(){raf=0;drawNow()})}
+// プレビューは「1 マス = 整数のデバイスピクセル」で描く（グリッド線の太さがそろうように）
+var small=document.createElement("canvas");
+function renderPreview(cv,s){var W=out.w*s,H=out.h*s;if(cv.width!==W||cv.height!==H){cv.width=W;cv.height=H}
+ small.width=out.w;small.height=out.h;small.getContext("2d").putImageData(new ImageData(new Uint8ClampedArray(out.d),out.w,out.h),0,0);
+ var x=cv.getContext("2d");x.clearRect(0,0,W,H);x.imageSmoothingEnabled=false;x.drawImage(small,0,0,W,H);
+ if($("lines").checked&&s>=3){x.fillStyle="rgba(18,12,26,.45)";for(var i=0;i<=out.w;i++)x.fillRect(Math.min(i*s,W-1),0,1,H);for(var j=0;j<=out.h;j++)x.fillRect(0,Math.min(j*s,H-1),W,1);
+  if(out.w>16||out.h>16){x.fillStyle="rgba(236,232,240,.5)";for(i=0;i<=out.w;i+=8)x.fillRect(Math.min(i*s,W-1),0,1,H);for(j=0;j<=out.h;j+=8)x.fillRect(0,Math.min(j*s,H-1),W,1)}}}
 function drawNow(){if(!out)return;var beads=$("beads").checked;$("preview").hidden=beads;$("chart").hidden=!beads;$("dropText").hidden=true;$("zoomWrap").hidden=false;
- if(beads){drawChart($("chart"));beadPanel()}else{var cv=$("preview"),L=Math.max(out.w,out.h),s=Math.max(1,Math.floor(1024/L));
-  var big=enlarge(out,s);if(cv.width!==big.width||cv.height!==big.height){cv.width=big.width;cv.height=big.height}var x=cv.getContext("2d");x.clearRect(0,0,cv.width,cv.height);x.drawImage(big,0,0);
-  if($("lines").checked&&s>=3){x.fillStyle="rgba(18,12,26,.45)";for(var i=0;i<=out.w;i++)x.fillRect(Math.min(i*s,cv.width-1),0,1,cv.height);for(var j=0;j<=out.h;j++)x.fillRect(0,Math.min(j*s,cv.height-1),cv.width,1);
-   if(out.w>16||out.h>16){x.fillStyle="rgba(236,232,240,.5)";for(i=0;i<=out.w;i+=8)x.fillRect(Math.min(i*s,cv.width-1),0,1,cv.height);for(j=0;j<=out.h;j+=8)x.fillRect(0,Math.min(j*s,cv.height-1),cv.width,1)}}}
+ if(beads){drawChart($("chart"));beadPanel()}else renderPreview($("preview"),prevGeom().k)
  info();ui();applyZoom()}
 function info(){if(!out){$("sizeInfo").textContent="";return}var S=scaleOf();
  $("sizeInfo").textContent="ドット "+out.w+"×"+out.h+" → 保存 "+out.w*S.s+"×"+out.h*S.s+" px"+(S.cl?"（最大 "+MAXPX+"px に合わせて "+S.s+" 倍）":"");
@@ -106,18 +110,25 @@ function blank(){var v=$("blankSize").value,n=v==="photo"?32:+v;TsukiLoader.show
  setTimeout(function(){try{if(out)push();mode="blank";if($("pal").value==="auto"){$("pal").value="tsuki";$("kRow").hidden=true}setPal();out=meta({w:n,h:n,d:new Uint8ClampedArray(n*n*4)},{mode:"blank",palKey:$("pal").value,pal:pal});edited=false;syncSize();chips();$("beads").checked=false;drawNow();toast(n+"×"+n+" の白紙だよ。描いてみてね")}finally{TsukiLoader.hide()}},30)}
 function load(file){$("toast").textContent="";if(!file||!/^image\//.test(file.type)){toast("画像ファイルを選んでね");return}
  TsukiLoader.show({caption:"読み込み中…",size:3});var url=URL.createObjectURL(file),img=new Image();
- img.onload=function(){if(src&&src.__url)URL.revokeObjectURL(src.__url);img.__url=url;src=img;cells=null;TsukiLoader.hide();run(true)};
+ img.onload=function(){$("pal").value="auto";$("kRow").hidden=false;if(src&&src.__url)URL.revokeObjectURL(src.__url);img.__url=url;src=img;cells=null;TsukiLoader.hide();run(true)};
  img.onerror=function(){TsukiLoader.hide();URL.revokeObjectURL(url);toast("この画像は開けなかった…（HEIC などはブラウザによって読めないことがあるよ。PNG か JPEG に変換してみてね）",5000)};img.src=url}
 var stroke=null,cv=$("preview"),wrap=$("zoomWrap"),stg=$("stage"),ptrs=new Map(),pan=null,pinch=null,pend=null,multi=false,locked=false,zoom=1,ZL=[1,1.5,2,3,4,6,8];
 // ---- 表示の拡大・縮小（CSS の表示サイズだけを変える。out や保存サイズには触らない）----
 function vis(){return $("beads").checked?$("chart"):cv}
-function fitBase(c){var cs=getComputedStyle(stg),W=stg.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight),H=Math.max(120,innerHeight*.7);
- if(!(W>0))W=c.width;return Math.min(1,W/c.width,H/c.height)}
+function fitWH(w,h){var cs=getComputedStyle(stg),W=stg.clientWidth-parseFloat(cs.paddingLeft)-parseFloat(cs.paddingRight),H=Math.max(120,innerHeight*.55);
+ if(!(W>0))W=w;return Math.min(1,W/w,H/h)}
+function fitBase(c){return fitWH(c.width,c.height)}
+// 表示サイズからマスの大きさ（デバイスピクセル、整数）を決める。大きすぎるときは上限で止めて CSS で拡大
+function prevGeom(){var L=Math.max(out.w,out.h),s0=Math.max(1,Math.floor(1024/L)),bw=out.w*s0,bh=out.h*s0,b=fitWH(bw,bh),dpr=window.devicePixelRatio||1,
+ k1=Math.max(1,Math.floor(Math.floor(bw*b)*dpr/out.w+1e-6)),k=Math.max(1,Math.round(k1*zoom)),cap=Math.max(1,Math.min(Math.floor(4096/L),Math.floor(Math.sqrt(16e6/(out.w*out.h)))));
+ return k>cap?{k:cap,w:out.w*k1*zoom/dpr,h:out.h*k1*zoom/dpr}:{k:k,w:out.w*k/dpr,h:out.h*k/dpr}}
+var rzT=0;
 function clamp01(v){return Math.max(0,Math.min(1,v))}
 function applyZoom(cx,cy,fx,fy){var c=vis();
  if(out&&!c.hidden&&c.width){var r=c.getBoundingClientRect();
   if(cx!==undefined&&fx===undefined){fx=r.width?clamp01((cx-r.left)/r.width):.5;fy=r.height?clamp01((cy-r.top)/r.height):.5}
-  var b=fitBase(c);c.style.width=Math.max(1,Math.floor(c.width*b*zoom))+"px";c.style.height=Math.max(1,Math.floor(c.height*b*zoom))+"px";
+  if(c===cv){var g=prevGeom();c.style.width=g.w+"px";c.style.height=g.h+"px";if(c.width!==out.w*g.k||c.height!==out.h*g.k){clearTimeout(rzT);rzT=setTimeout(draw,pinch?150:30)}}
+  else{var b=fitBase(c);c.style.width=Math.max(1,Math.floor(c.width*b*zoom))+"px";c.style.height=Math.max(1,Math.floor(c.height*b*zoom))+"px"}
   if(cx!==undefined){var r2=c.getBoundingClientRect();wrap.scrollLeft+=r2.left+fx*r2.width-cx;wrap.scrollTop+=r2.top+fy*r2.height-cy}}
  var zr=Math.round(zoom);$("zoomVal").textContent=(Math.abs(zoom-zr)<.05?zr:zoom.toFixed(1))+"倍";
  $("zoomOut").disabled=!out||zoom<=1.001;$("zoomIn").disabled=!out||zoom>=7.999;$("zoom1").disabled=!out||zoom===1}
@@ -239,5 +250,6 @@ window.__dot={size:function(){return out?[out.w,out.h]:null},palette:function(){
  state:function(){return out?out.w+"x"+out.h+":"+Array.prototype.join.call(out.d,","):""},counts:function(){return out?counts():[]},
  chartGeom:function(){return chartGeom},sizeSel:function(){var o=$("photoOpt");return[$("blankSize").value,o.hidden,o.textContent]},hist:function(){return[undoS.length,redoS.length]},cur:function(){return cur},
  zoom:function(){return zoom},locked:function(){return locked},
+ previewK:function(){return out?cv.width/out.w:0},
  hash:function(){if(!out)return 0;var h=0;for(var i=0;i<out.d.length;i++)h=(h*31+out.d[i])|0;return h},presets:PRESETS};
 })();

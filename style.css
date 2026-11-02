@@ -23,7 +23,7 @@ select:focus{border-color:var(--green);outline:none}
 .btns{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 button,.btn{background:var(--silver);color:var(--ink);border:0;border-radius:6px;padding:9px 14px;font-weight:600;cursor:pointer;font-size:14px;text-decoration:none;font-family:inherit}
 button:hover,.btn:hover{background:var(--green)}button:disabled{opacity:.4;cursor:default;background:var(--silver)}
-#toast{min-height:1.4em;color:var(--pink);font-size:13px}
+#toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:1000;width:max-content;max-width:calc(100vw - 32px);margin:0;padding:9px 16px;border-radius:12px;background:#1b1426;color:var(--silver);border:1px solid var(--pink);box-shadow:0 4px 18px rgba(0,0,0,.55);font-size:13px;line-height:1.45;text-align:center;pointer-events:none}#toast:empty{display:none}
 #iosBox{background:#1b1426;border:1px solid var(--green);border-radius:10px;padding:12px;font-size:14px}
 #iosBox p{margin:0 0 8px}#iosImg{display:block;max-width:100%;image-rendering:pixelated;-webkit-touch-callout:default}
 footer{font-size:12px;opacity:.6;text-align:center;font-family:ui-monospace,monospace}
@@ -38,7 +38,7 @@ footer{font-size:12px;opacity:.6;text-align:center;font-family:ui-monospace,mono
 #preview{cursor:crosshair}#chart{background:var(--silver);cursor:grab}
 #toolbar{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}#toolbar button{padding:7px 10px;font-size:13px}
 #toolbar .tool{background:#1b1426;color:var(--silver);border:1px solid #4a4352}#toolbar .tool.on{background:var(--green);color:var(--ink);border-color:var(--green)}
-#toolbar .tool:disabled{background:#1b1426}.sep{width:1px;background:#4a4352;margin:0 4px}
+#toolbar .tool:disabled{background:#1b1426;opacity:.55}#toolbar .tool.on:disabled{background:#1b1426;color:var(--green);border-color:var(--green);opacity:.6}.sep{width:1px;background:#4a4352;margin:0 4px}
 #colorRow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:10px;font-size:14px}
 #colorRow #chips{margin:0}#chips li{cursor:pointer;position:relative}#chips li.sel{outline:2px solid var(--green);outline-offset:2px}
 .chip{display:inline-block;width:28px;height:28px;border-radius:5px;border:1px solid #4a4352}.chip.big{width:36px;height:36px}
@@ -50,7 +50,7 @@ fieldset:disabled{opacity:.45}.hint{font-size:12px;opacity:.6;margin:0 0 10px}.o
 #beadBox{background:#1b1426;border-radius:8px;padding:10px 12px;margin-bottom:12px;font-size:13px}#beadSum{margin:0 0 6px;color:var(--green);font-family:ui-monospace,monospace}
 #beadList{margin:0;padding:0;list-style:none;display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:4px 12px;max-height:220px;overflow:auto}
 #beadList li{display:flex;align-items:center;gap:8px;font-family:ui-monospace,monospace}#beadList .no{min-width:1.8em;text-align:right;opacity:.7}#beadList .chip{width:18px;height:18px}#beadList .n{margin-left:auto}
-#zoomWrap{width:100%;min-width:0;flex:1 1 100%;max-height:70vh;overflow:auto;display:flex;touch-action:none;overscroll-behavior:contain;-webkit-user-select:none;user-select:none}
+#zoomWrap{width:100%;min-width:0;flex:1 1 100%;max-height:55vh;overflow:auto;display:flex;touch-action:none;overscroll-behavior:contain;-webkit-user-select:none;user-select:none}
 #zoomWrap.locked #preview{cursor:grab}#zoomWrap.panning,#zoomWrap.panning canvas{cursor:grabbing!important}
 #zoomBar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-bottom:8px;font-size:13px}
 #zoomBar button{padding:6px 12px;font-size:15px;min-width:40px}#zoomBar #zoom1{font-size:13px}
